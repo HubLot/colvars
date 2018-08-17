@@ -2,9 +2,8 @@
 # Jérôme Hénin <henin@ibpc.fr> 2018
 
 # Usage:
-# package require cv_dashboard
-# (or load cv_dashboard.tcl)
-# cv_dashboard
+# source cv_dashboard.tcl
+# cv_dashboard (to reopen window)
 
 # Design principles:
 # - take advantage of colvars/VMD binding for maximum user interaction
@@ -654,7 +653,7 @@ proc ::cv_dashboard::zoom { factor } {
 }
 
 
-# Fit vertical axis to values within the current horizontal range
+# Fit vertical axis to y values within the current x range
 proc ::cv_dashboard::fit_vertically {} {
   variable ::cv_dashboard::plothandle
 
@@ -676,7 +675,7 @@ proc ::cv_dashboard::fit_vertically {} {
 }
 
 
-# Fit all values within horizontal range, then fit vertically
+# Fit all x values within horizontal range, then fit vertically
 proc ::cv_dashboard::fit_horizontally {} {
   variable ::cv_dashboard::plothandle
 
@@ -724,3 +723,6 @@ proc ::cv_dashboard::display_marker { f } {
     }
   }
 }
+
+# Create a window to begin with - until we have a menu entry
+cv_dashboard
