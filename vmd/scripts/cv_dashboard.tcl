@@ -55,9 +55,14 @@ proc cv_dashboard {} {
 proc ::cv_dashboard::createWindow {} {
 
   package require tablelist
+
+  if {[molinfo num] == 0 } {
+    tk_messageBox -icon error -title "Colvars Dashboard Error"\
+      -message "No molecule loaded. Please load a molecule before running Colvars Dashboard.\n"
+    return -1
+  }
+
   set w [toplevel .cv_dashboard_window]
-
-
   wm title $w "Colvars dashboard"
   wm protocol $w WM_DELETE_WINDOW {
     # window destructor that removes the trace we put in place, so they don't accumulate
@@ -416,6 +421,7 @@ proc ::cv_dashboard::invokeBrowser {url} {
   if {[string length $command] == 0} {
     return -code error "couldn't find browser"
   }
+  puts "$command $url"
   if {[catch {exec {*}$command $url &} error]} {
     return -code error "couldn't execute '$command': $error"
   }
