@@ -36,6 +36,7 @@ namespace eval ::cv_dashboard {
 
   # Handle to keep track of a single interactive plot
   variable plothandle
+  variable plottype         ;# either timeline or 2cv
 }
 
 
@@ -108,8 +109,9 @@ proc ::cv_dashboard::createWindow {} {
     -row $gridrow -column 2 -pady 2 -padx 2 -sticky nsew
 
   incr gridrow
-  grid [ttk::button $w.plot -text "Interactive plot" -command ::cv_dashboard::plot -padding "2 0 2 0"] -row $gridrow -column 0 -pady 2 -padx 2 -sticky nsew
-  grid [ttk::button $w.refresh -text "Refresh table" -command ::cv_dashboard::refresh_table -padding "2 0 2 0"] -row $gridrow -column 1 -pady 2 -padx 2 -sticky nsew
+  grid [ttk::button $w.plot -text "Timeline plot" -command ::cv_dashboard::plot -padding "2 0 2 0"] -row $gridrow -column 0 -pady 2 -padx 2 -sticky nsew
+  grid [ttk::button $w.plot2cv -text "2d plot" -command {::cv_dashboard::plot 2cv} -padding "2 0 2 0"] -row $gridrow -column 1 -pady 2 -padx 2 -sticky nsew
+  grid [ttk::button $w.refresh -text "Refresh table" -command ::cv_dashboard::refresh_table -padding "2 0 2 0"] -row $gridrow -column 2 -pady 2 -padx 2 -sticky nsew
 
   incr gridrow
   grid [label $w.frameTxt -text "Frame:"] -row $gridrow -column 0 -pady 2 -padx 2 -sticky nsew
@@ -515,18 +517,15 @@ proc ::cv_dashboard::refresh_reps {} {
 
 
 # Create plot window
-proc ::cv_dashboard::plot {} {
+proc ::cv_dashboard::plot { { type timeline } } {
   variable ::cv_dashboard::plothandle
+  set ::cv_dashboard::plottype type
 
   # Remove existing plot, if any
   if { [info exists plothandle] } {
     catch {$plothandle quit}
     unset plothandle
   }
-
-  set nf [molinfo top get numframes]
-  set x {}
-  for {set f 0} {$f < $nf} {incr f} { lappend x $f }
 
   set cvs [selected]
   if { [llength $cvs] == 0 } {
@@ -539,21 +538,37 @@ proc ::cv_dashboard::plot {} {
 
   # Analyze colvar values to split vector values into scalars with numeric index
   # store array of names for each scalar value
+  set total_dim 0
+  set name_list {}
   foreach c $cvs {
     set val [run_cv colvar $c update]
     set size [llength $val]
+    incr total_dim $size
     if { $size == 1 } {
       set names($c) $c
+      lappend name_list $c
       set y($c) {}
     } else {
       for {set i 1} {$i <= $size} {incr i} {
         set n $c; append n "_$i"
         lappend names($c) $n
+        lappend name_list $n
         set y($n) {}
       }
     }
   }
 
+  if { $type == "2cv" } {
+    if { $total_dim > 2 } {
+      puts "Warning: 2d plot will use the first 2 of $total_dim scalar dimensions in selection."
+    } elseif { $total_dim < 2 } {
+      tk_messageBox -icon error -title "Colvars Dashboard Error"\
+        -message "Not enough data selected. 2 scalar sets are needed for 2d plot.\n"
+      return
+    }
+  }
+
+  set nf [molinfo top get numframes]
   # Get list of values for all frames
   for {set f 0} {$f< $nf} {incr f} {
     run_cv frame $f
@@ -564,30 +579,43 @@ proc ::cv_dashboard::plot {} {
       }
     }
   }
-  set plothandle [multiplot -title {Colvars trajectory   [left-click, keyb arrows (+ Shift/Ctrl) to navigate & zoom, v/h to fit vert/horizontally]} \
+
+  if { $type == "timeline"} {
+    set plothandle [multiplot \
+      -title {Colvars trajectory   [left-click, keyb arrows (+ Shift/Ctrl) to navigate & zoom, v/h to fit vert/horizontally]} \
       -xlabel "Frame" -ylabel "Value" -nostats]
-  foreach c $cvs {
-    foreach n $names($c) {
+    set x {}
+    for {set f 0} {$f < $nf} {incr f} { lappend x $f }
+    foreach n $name_list {
       $plothandle add $x $y($n) -legend $n
     }
+  } elseif { $type == "2cv"} {
+    set xname [lindex $name_list 0]
+    set yname [lindex $name_list 1]
+    set plothandle [multiplot -title {Colvars trajectory} \
+    -xlabel $xname -ylabel $yname -nostats -marker circle]
+    $plothandle add $y($xname) $y($yname)
   }
+
   $plothandle replot
 
-  # bind mouse and keyboard events to callbacks
-  set plot_ns [namespace qualifiers $::cv_dashboard::plothandle]
-  bind [set ${plot_ns}::w] <Button-1>       { ::cv_dashboard::plot_clicked %x %y }
-  bind [set ${plot_ns}::w] <Left>           { ::cv_dashboard::chg_frame -1 }
-  bind [set ${plot_ns}::w] <Right>          { ::cv_dashboard::chg_frame 1 }
-  bind [set ${plot_ns}::w] <Shift-Left>     { ::cv_dashboard::chg_frame -10 }
-  bind [set ${plot_ns}::w] <Shift-Right>    { ::cv_dashboard::chg_frame 10 }
-  bind [set ${plot_ns}::w] <Control-Left>   { ::cv_dashboard::chg_frame -50 }
-  bind [set ${plot_ns}::w] <Control-Right>  { ::cv_dashboard::chg_frame 50 }
-  bind [set ${plot_ns}::w] <Up>             { ::cv_dashboard::zoom 0.25 }
-  bind [set ${plot_ns}::w] <Down>           { ::cv_dashboard::zoom 4 }
-  bind [set ${plot_ns}::w] <Shift-Up>       { ::cv_dashboard::zoom 0.0625 }
-  bind [set ${plot_ns}::w] <Shift-Down>     { ::cv_dashboard::zoom 16 }
-  bind [set ${plot_ns}::w] <v>              { ::cv_dashboard::fit_vertically }
-  bind [set ${plot_ns}::w] <h>              { ::cv_dashboard::fit_horizontally }
+  if { $type == "timeline" } {
+    # bind mouse and keyboard events to callbacks
+    set plot_ns [namespace qualifiers $::cv_dashboard::plothandle]
+    bind [set ${plot_ns}::w] <Button-1>       { ::cv_dashboard::plot_clicked %x %y }
+    bind [set ${plot_ns}::w] <Left>           { ::cv_dashboard::chg_frame -1 }
+    bind [set ${plot_ns}::w] <Right>          { ::cv_dashboard::chg_frame 1 }
+    bind [set ${plot_ns}::w] <Shift-Left>     { ::cv_dashboard::chg_frame -10 }
+    bind [set ${plot_ns}::w] <Shift-Right>    { ::cv_dashboard::chg_frame 10 }
+    bind [set ${plot_ns}::w] <Control-Left>   { ::cv_dashboard::chg_frame -50 }
+    bind [set ${plot_ns}::w] <Control-Right>  { ::cv_dashboard::chg_frame 50 }
+    bind [set ${plot_ns}::w] <Up>             { ::cv_dashboard::zoom 0.25 }
+    bind [set ${plot_ns}::w] <Down>           { ::cv_dashboard::zoom 4 }
+    bind [set ${plot_ns}::w] <Shift-Up>       { ::cv_dashboard::zoom 0.0625 }
+    bind [set ${plot_ns}::w] <Shift-Down>     { ::cv_dashboard::zoom 16 }
+    bind [set ${plot_ns}::w] <v>              { ::cv_dashboard::fit_vertically }
+    bind [set ${plot_ns}::w] <h>              { ::cv_dashboard::fit_horizontally }
+  }
 }
 
 
