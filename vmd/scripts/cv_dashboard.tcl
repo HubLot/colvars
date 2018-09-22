@@ -731,32 +731,42 @@ proc ::cv_dashboard::display_marker { f } {
       # objects without redrawing the whole plot - which takes too long for this
       set ns [namespace qualifiers $plothandle]
 
-      set xmin [set ${ns}::xmin]
-      set xmax [set ${ns}::xmax]
-      # Move plot boundaries if necessary
-      if { $f < $xmin } {
-        set xmax [expr { $xmax + $f - $xmin }]
-        set xmin $f
-        $plothandle configure -xmin $xmin -xmax $xmax -plot
-      }
-      if { $f > $xmax } {
-        set xmin [expr { $xmin + $f - $xmax }]
-        set xmax $f
-        $plothandle configure -xmin $xmin -xmax $xmax -plot
-      }
+      if { $::cv_dashboard::plottype == "timeline" } {
 
-      set y1 [set ${ns}::yplotmin]
-      set y2 [set ${ns}::yplotmax]
-      set xplotmin [set ${ns}::xplotmin]
-      set scalex [set ${ns}::scalex]
-      set x [expr $xplotmin+($scalex*($f-$xmin))]
+        set xmin [set ${ns}::xmin]
+        set xmax [set ${ns}::xmax]
+        # Move plot boundaries if necessary
+        if { $f < $xmin } {
+          set xmax [expr { $xmax + $f - $xmin }]
+          set xmin $f
+          $plothandle configure -xmin $xmin -xmax $xmax -plot
+        }
+        if { $f > $xmax } {
+          set xmin [expr { $xmin + $f - $xmax }]
+          set xmax $f
+          $plothandle configure -xmin $xmin -xmax $xmax -plot
+        }
 
-      set canv "[set ${ns}::w].f.cf"
-      $canv delete frame_marker
-      $canv create line  $x $y1 $x $y2 -fill blue -tags frame_marker
+        set y1 [set ${ns}::yplotmin]
+        set y2 [set ${ns}::yplotmax]
+        set xplotmin [set ${ns}::xplotmin]
+        set scalex [set ${ns}::scalex]
+        set x [expr $xplotmin+($scalex*($f-$xmin))]
+
+        set canv "[set ${ns}::w].f.cf"
+        $canv delete frame_marker
+        $canv create line  $x $y1 $x $y2 -fill blue -tags frame_marker
+      } elseif { $::cv_dashboard::plottype == "2cv" } {
+        set xmin [set ${ns}::xmin]
+        set xmax [set ${ns}::xmax]
+        set ymin [set ${ns}::ymin]
+        set ymax [set ${ns}::ymax]
+        set x [lindex set ${ns}::]
+        set y2 [set ${ns}::yplotmax]
+      }
     }
   }
-}
+} 
 
 # Create a window to begin with - until we have a menu entry
 cv_dashboard
