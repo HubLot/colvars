@@ -519,7 +519,7 @@ proc ::cv_dashboard::refresh_reps {} {
 # Create plot window
 proc ::cv_dashboard::plot { { type timeline } } {
   variable ::cv_dashboard::plothandle
-  set ::cv_dashboard::plottype type
+  set ::cv_dashboard::plottype $type
 
   # Remove existing plot, if any
   if { [info exists plothandle] } {
@@ -757,12 +757,12 @@ proc ::cv_dashboard::display_marker { f } {
         $canv delete frame_marker
         $canv create line  $x $y1 $x $y2 -fill blue -tags frame_marker
       } elseif { $::cv_dashboard::plottype == "2cv" } {
-        set xmin [set ${ns}::xmin]
-        set xmax [set ${ns}::xmax]
-        set ymin [set ${ns}::ymin]
-        set ymax [set ${ns}::ymax]
-        set x [lindex set ${ns}::]
-        set y2 [set ${ns}::yplotmax]
+#         set xmin [set ${ns}::xmin]
+#         set xmax [set ${ns}::xmax]
+#         set ymin [set ${ns}::ymin]
+#         set ymax [set ${ns}::ymax]
+#         set x [lindex set ${ns}::]
+#         set y2 [set ${ns}::yplotmax]
       }
     }
   }

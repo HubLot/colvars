@@ -238,7 +238,6 @@ void SimParameters::scriptSet(const char *param, const char *value) {
   SCRIPT_PARSE_FLOAT("drudeBondConst",drudeBondConst)
   SCRIPT_PARSE_FLOAT("drudeBondLen",drudeBondLen)
   SCRIPT_PARSE_STRING("outputname",outputFilename)
-  SCRIPT_PARSE_STRING("xstFile",xstFilename)
   SCRIPT_PARSE_INT("outputEnergies",outputEnergies)
   SCRIPT_PARSE_STRING("restartname",restartFilename)
   SCRIPT_PARSE_INT("DCDfreq",dcdFrequency)
