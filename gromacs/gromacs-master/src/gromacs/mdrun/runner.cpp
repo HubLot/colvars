@@ -1709,7 +1709,7 @@ int Mdrunner::mdrunner()
             }
 
             inputrec->colvars_proxy =  new colvarproxy_gromacs();
-            inputrec->colvars_proxy->init(inputrec.get(),inputrec->init_step,&mtop, &observablesHistory, prefix, filenames_colvars,filename_restart, cr, MASTER(cr) ? globalState->x.rvec_array() : nullptr);
+            inputrec->colvars_proxy->init(inputrec.get(),inputrec->init_step,&mtop, &observablesHistory, prefix, filenames_colvars,filename_restart, cr, MASTER(cr) ? globalState->x.rvec_array() : nullptr, &atomSets);
             fr->forceProviders->addForceProvider(inputrec->colvars_proxy);
         }
         else

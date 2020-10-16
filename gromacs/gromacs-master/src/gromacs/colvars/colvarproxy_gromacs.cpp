@@ -19,12 +19,16 @@
 #include "colvarproxy_gromacs.h"
 #include "gromacs/mdtypes/commrec.h"
 #include "gromacs/domdec/domdec_struct.h"
+
 #include "gromacs/gmxlib/network.h"
 #include "gromacs/domdec/ga2la.h"
 #include "gromacs/mdtypes/colvarshistory.h"
 #include "gromacs/topology/ifunc.h"
 #include "gromacs/topology/mtop_util.h"
 #include "gromacs/mdlib/broadcaststructs.h"
+
+
+
 
 //************************************************************
 // colvarproxy_gromacs
@@ -37,7 +41,8 @@ void colvarproxy_gromacs::init(t_inputrec *ir, int64_t step,gmx_mtop_t *mtop,
                                gmx::ArrayRef<const std::string> filenames_config,
                                const std::string &filename_restart,
                                const t_commrec *cr,
-                               const rvec x[]) {
+                               const rvec x[],
+                               gmx::LocalAtomSetManager* atomSets) {
 
 
   // Initialize colvars.
@@ -136,14 +141,13 @@ void colvarproxy_gromacs::init(t_inputrec *ir, int64_t step,gmx_mtop_t *mtop,
   if(MASTER(cr)) {
     // Retrieve the number of colvar atoms
     n_colvars_atoms = atoms_ids.size();
-    // Copy their global indices
-    ind = atoms_ids.data(); // This has to be updated if the vector is reallocated
   }
 
-
   if(PAR(cr)) {
-    // Let the other nodes know the number of colvar atoms.
+    // Let the other nodes know the number of colvar atoms and their ids to construct a gmx::LocalAtomSet
     block_bc(cr->mpi_comm_mygroup, n_colvars_atoms);
+    atoms_ids.reserve(n_colvars_atoms);
+    nblock_bc(cr->mpi_comm_mygroup, n_colvars_atoms, atoms_ids.data());
 
     // Initialise atoms_new_colvar_forces on non-master nodes
     if(!MASTER(cr)) {
@@ -151,12 +155,15 @@ void colvarproxy_gromacs::init(t_inputrec *ir, int64_t step,gmx_mtop_t *mtop,
     }
   }
 
-  snew(x_colvars_unwrapped,         n_colvars_atoms);
-  snew(xa_ind,     n_colvars_atoms);
-  snew(xa_shifts,  n_colvars_atoms);
-  snew(xa_eshifts, n_colvars_atoms);
-  snew(xa_old,     n_colvars_atoms);
-  snew(f_colvars,  n_colvars_atoms);
+  // Construct a LocalAtomSet from atom_ids
+  colvars_atoms = std::make_unique<gmx::LocalAtomSet>(atomSets->add({atoms_ids.data(),atoms_ids.data() + n_colvars_atoms}));
+
+
+  snew(x_colvars_unwrapped, n_colvars_atoms);
+  snew(xa_shifts,           n_colvars_atoms);
+  snew(xa_eshifts,          n_colvars_atoms);
+  snew(xa_old,              n_colvars_atoms);
+  snew(f_colvars,           n_colvars_atoms);
 
   // Prepare data
 
@@ -185,18 +192,17 @@ void colvarproxy_gromacs::init(t_inputrec *ir, int64_t step,gmx_mtop_t *mtop,
       * in the next time step we can make the colvars atoms whole again in PBC */
       if (colvarstate->bFromCpt)
       {
-          for (int i = 0; i < n_colvars_atoms; i++)
-            {
+          for (size_t i = 0; i < colvars_atoms->numAtomsGlobal(); i++)
+          {
                 copy_rvec(colvarstate->xa_old_whole[i], xa_old[i]);
-            }
+          }
       }
       else
       {
           colvarstate->n_atoms = n_colvars_atoms;
-          for (int i = 0; i < n_colvars_atoms; i++)
+          for (size_t i = 0; i < colvars_atoms->numAtomsGlobal(); i++)
           {
-              int ii = ind[i];
-              copy_rvec(x[ii], xa_old[i]);
+              copy_rvec(x[colvars_atoms->globalIndex()[i]], xa_old[i]);
           }
       }
 
@@ -206,27 +212,12 @@ void colvarproxy_gromacs::init(t_inputrec *ir, int64_t step,gmx_mtop_t *mtop,
   }
 
 
-  // Communicate initial coordinates and global indices to all processes
+  // Communicate initial coordinates to all processes
   if (PAR(cr))
   {
-    nblock_bc(cr->mpi_comm_mygroup, n_colvars_atoms, xa_old);
-    snew_bc(cr->mpi_comm_mygroup, ind, n_colvars_atoms);
-    nblock_bc(cr->mpi_comm_mygroup, n_colvars_atoms, ind);
+    nblock_bc(cr->mpi_comm_mygroup,  n_colvars_atoms, xa_old);
   }
 
-  // Serial Run
-  if (!PAR(cr))
-  {
-    nat_loc = n_colvars_atoms;
-    nalloc_loc = n_colvars_atoms;
-    ind_loc = ind;
-
-    // xa_ind[i] needs to be set to i for serial runs
-    for (int i = 0; i < n_colvars_atoms; i++)
-    {
-        xa_ind[i] = i;
-    }
-  }
 
   if (MASTER(cr) && cvm::debug()) {
     cvm::log ("atoms_ids = "+cvm::to_str (atoms_ids)+"\n");
@@ -392,7 +383,7 @@ int colvarproxy_gromacs::backup_file (char const *filename)
 }
 
 
-void colvarproxy_gromacs::update_data(const t_commrec *cr, int64_t const step, t_pbc const &pbc, const matrix box, bool bNS)
+void colvarproxy_gromacs::update_data(const t_commrec *cr, int64_t const step, t_pbc const &pbc, bool bNS)
 {
 
   if (MASTER(cr)) {
@@ -415,15 +406,10 @@ void colvarproxy_gromacs::update_data(const t_commrec *cr, int64_t const step, t
   } // end master
 
   gmx_pbc = pbc;
-  gmx_box = box;
   gmx_bNS = bNS;
 
   previous_gmx_step = step;
 
-  // Prepare data for MPI communication
-  if(PAR(cr) && bNS) {
-    dd_make_local_group_indices(cr->dd->ga2la, n_colvars_atoms, ind, &nat_loc, &ind_loc, &nalloc_loc, xa_ind);
-  }
 }
 
 
@@ -437,13 +423,15 @@ void colvarproxy_gromacs::calculateForces(
   const gmx::ArrayRef<const gmx::RVec> x  = forceProviderInput.x_;
   // Local atom coords (coerced into into old gmx type)
   const rvec *x_pointer          = &(x.data()->as_vec());
+  const auto& box = forceProviderInput.box_;
 
 
   // Eventually there needs to be an interface to update local data upon neighbor search
   // We could check if by chance all atoms are in one node, and skip communication
-  communicate_group_positions(cr, x_colvars_unwrapped, xa_shifts, xa_eshifts,
-                              gmx_bNS, x_pointer, n_colvars_atoms, nat_loc,
-                              ind_loc, xa_ind, xa_old, gmx_box);
+  communicate_group_positions(cr, x_colvars_unwrapped, xa_shifts, xa_eshifts, gmx_bNS, x_pointer,
+                              colvars_atoms->numAtomsGlobal(), colvars_atoms->numAtomsLocal(),
+                              colvars_atoms->localIndex().data(), colvars_atoms->collectiveIndex().data(),
+                              xa_old, box);
 
   // Communicate_group_positions takes care of removing shifts (unwrapping)
   // in single node jobs, communicate_group_positions() is efficient and adds no overhead
@@ -499,24 +487,18 @@ void colvarproxy_gromacs::calculateForces(
 
   const gmx::ArrayRef<gmx::RVec> &f_out = forceProviderOutput->forceWithVirial_.force_;
   matrix local_colvars_virial = { { 0 } };
-
-  // Pass the applied forces back to GROMACS
-  for (int i = 0; i < n_colvars_atoms; i++)
+  const auto& localcolvarsIndex = colvars_atoms->localIndex();
+  const auto& collectivecolvarsIndex = colvars_atoms->collectiveIndex();
+  // Loop through local atoms to aply the colvars forces
+  for (gmx::index l = 0; l < localcolvarsIndex.ssize(); l++)
   {
-    int i_global = ind[i];
-
-    // check if this is a local atom and find out locndx
-    if (PAR(cr)) {
-      const int *locndx = cr->dd->ga2la->findHome(i_global);
-      if (locndx) {
-        f_out[*locndx] += f_colvars[i];
-        add_virial_term(local_colvars_virial, f_colvars[i], x_colvars_unwrapped[i]);
-      }
-      // Do nothing if atom is not local
-    } else { // Non MPI-parallel
-      f_out[i_global] += f_colvars[i];
-      add_virial_term(local_colvars_virial, f_colvars[i], x_colvars_unwrapped[i]);
-    }
+      /* Get the right index of the local colvars atoms */
+      int i_local = localcolvarsIndex[l];
+      /* Index of this local atom in the collective colvars atom arrays */
+      int i_colvars = collectivecolvarsIndex[l];
+      /* Add */
+      rvec_inc(f_out[i_local], f_colvars[i_colvars]);
+      add_virial_term(local_colvars_virial, f_colvars[i_colvars], x_colvars_unwrapped[i_colvars]);
   }
 
   forceProviderOutput->forceWithVirial_.addVirialContribution(local_colvars_virial);

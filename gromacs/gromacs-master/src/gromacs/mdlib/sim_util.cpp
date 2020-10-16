@@ -624,7 +624,7 @@ static void computeSpecialForces(FILE*                          fplog,
         {
             t_pbc pbc;
             set_pbc(&pbc, inputrec->pbcType, box);
-            inputrec->colvars_proxy->update_data(cr, step, pbc, box, didNeighborSearch);
+            inputrec->colvars_proxy->update_data(cr, step, pbc, didNeighborSearch);
         }
 
         gmx::ForceProviderInput  forceProviderInput(x, *mdatoms, t, box, *cr);

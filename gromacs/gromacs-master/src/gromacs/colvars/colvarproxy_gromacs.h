@@ -3,9 +3,13 @@
 #ifndef GMX_COLVARS_COLVARPROXY_GROMACS_H
 #define GMX_COLVARS_COLVARPROXY_GROMACS_H
 
+#include <memory>
+
 #include "colvarmodule.h"
 #include "colvaratoms.h"
 #include "colvarproxy.h"
+#include "gromacs/domdec/localatomset.h"
+#include "gromacs/domdec/localatomsetmanager.h"
 #include "gromacs/random/tabulatednormaldistribution.h"
 #include "gromacs/random/threefry.h"
 #include "gromacs/mdtypes/forceoutput.h"
@@ -22,8 +26,6 @@ public:
   // GROMACS structures.
   //PBC struct
   t_pbc gmx_pbc;
-  //Box
-  const real (*gmx_box)[3];
   //
   t_atoms gmx_atoms;
 protected:
@@ -46,26 +48,18 @@ protected:
 
 
   // Node-local bookkepping data
+  //! The colvars atom indices
+  std::unique_ptr<gmx::LocalAtomSet> colvars_atoms;
   //! Total number of Colvars atoms
   int        n_colvars_atoms = 0;
-  //! Part of the atoms that are local.
-  int        nat_loc = 0;
-  //! Global indices of the Colvars atoms.
-  int       *ind = nullptr;
-  //! Local indices of the Colvars atoms.
-  int       *ind_loc = nullptr;
-  //! Allocation size for ind_loc.
-  int        nalloc_loc = 0;
   //! Unwrapped positions for all Colvars atoms, communicated to all nodes.
   rvec      *x_colvars_unwrapped = nullptr;
   //! Shifts for all Colvars atoms, to make molecule(s) whole.
   ivec      *xa_shifts = nullptr;
   //! Extra shifts since last DD step.
   ivec      *xa_eshifts = nullptr;
-  //! Old positions for all Colvars atoms on master.
+  //! Last whole positions for all Colvars atoms.
   rvec      *xa_old = nullptr;
-  //! Position of each local atom in the collective array.
-  int       *xa_ind = nullptr;
   //! Bias forces on all Colvars atoms
   rvec      *f_colvars = nullptr;
 public:
@@ -77,12 +71,12 @@ public:
   void init(t_inputrec *gmx_inp, int64_t step, gmx_mtop_t *mtop, ObservablesHistory* oh,
             const std::string &prefix, gmx::ArrayRef<const std::string> filenames_config,
             const std::string &filename_restart, const t_commrec *cr,
-            const rvec x[]);
+            const rvec x[],
+            gmx::LocalAtomSetManager*   atomSets);
 
-  void dd_make_local_atoms(const t_commrec *cr);
   // Called each step before evaluating the force provider
   // Should eventually be replaced by the MDmodule interface?
-  void update_data(const t_commrec *cr, int64_t const step, t_pbc const &pbc, const matrix box, bool bNS);
+  void update_data(const t_commrec *cr, int64_t const step, t_pbc const &pbc, bool bNS);
   /*! \brief
     * Computes forces.
     *
