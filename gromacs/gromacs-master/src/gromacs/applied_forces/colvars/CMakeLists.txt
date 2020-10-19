@@ -36,4 +36,5 @@ gmx_add_libgromacs_sources(
     colvarsMDModule.cpp
     colvarsoptions.cpp
     colvarsforceprovider.cpp
+    colvarssimulationsparameters.cpp
     )

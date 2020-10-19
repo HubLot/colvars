@@ -46,6 +46,7 @@ void colvarsMdpTransformFromString(IKeyValueTreeTransformRules* rules,
 
 void ColvarsOptions::initMdpTransform(IKeyValueTreeTransformRules* rules)
 {
+    std::cout << "ColvarsOptions::initMdpTransform()" << std::endl;
     const auto& stringIdentityTransform = [](std::string s) { return s; };
     colvarsMdpTransformFromString<bool>(rules, &fromStdString<bool>, c_activeTag_);
     colvarsMdpTransformFromString<std::string>(rules, stringIdentityTransform,
@@ -75,12 +76,35 @@ void ColvarsOptions::buildMdpOutput(KeyValueTreeObjectBuilder* builder) const
 void ColvarsOptions::initMdpOptions(IOptionsContainerWithSections* options)
 {
     std::cout << "ColvarsOptions::initMdpOptions()" << std::endl;
+    std::cout << "ColvarsOptions::initMdpOptions(), filename : " << colvarsFileName_ << std::endl;
     auto section = options->addSection(OptionSection("colvars"));
     section.addOption(BooleanOption(c_activeTag_.c_str()).store(&active_));
     section.addOption(StringOption(colvarsFileNameTag_.c_str()).store(&colvarsFileName_));
     section.addOption(StringOption(colvarsRestartFileNameTag_.c_str()).store(&colvarsRestartFileName_));
+    std::cout << "ColvarsOptions::initMdpOptions(), filename : " << colvarsFileName_ << std::endl;
 }
 
+
+void ColvarsOptions::writeInternalParametersToKvt(KeyValueTreeObjectBuilder treeBuilder)
+{
+    std::cout << "ColvarsOptions::writeInternalParametersToKvt()" << std::endl;
+    treeBuilder.addValue<std::string>("colvars-" + colvarsFileNameTag_,colvarsFileName_);
+}
+
+
+void ColvarsOptions::readInternalParametersFromKvt(const KeyValueTreeObject& tree)
+{
+    std::cout << "ColvarsOptions::readInternalParametersFromKvt()" << std::endl;
+    if (!active_)
+    {
+        return;
+    }
+
+    std::string toto  = tree["colvars-" + colvarsFileNameTag_].cast<std::string>();
+    std::cout << "ColvarsOptions::readInternalParametersFromKvt(), filename : " << toto << std::endl;
+
+
+}
 
 bool ColvarsOptions::isActive() const
 {

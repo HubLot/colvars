@@ -3,10 +3,16 @@
 
 #include <memory>
 
+
 #include "gromacs/fileio/checkpoint.h"
 #include "gromacs/mdspan/extensions.h"
 #include "gromacs/mdtypes/iforceprovider.h"
 #include "gromacs/utility/classhelpers.h"
+#include "gromacs/domdec/localatomset.h"
+#include "gromacs/domdec/localatomsetmanager.h"
+#include "gromacs/topology/mtop_util.h"
+
+#include "gromacs/colvars/colvarproxy.h"
 
 enum class PbcType : int;
 
@@ -17,18 +23,30 @@ namespace gmx
 /*! \internal \brief
  * Implements IForceProvider for colvars forces.
  */
-class ColvarsForceProvider final : public IForceProvider
+class ColvarsForceProvider final : public IForceProvider, public colvarproxy
 {
+
+private:
+
+    PbcType                       pbcType_;
+    //! The local atom set to act on
+    std::unique_ptr<LocalAtomSet> colvars_atoms;
+
+    t_atoms gmx_atoms_;
+
+    //! From colvarproxy
+    //! The simulation time step
+     cvm::real timestep;
+
+
 public:
     //! Construct force provider for colvars from its parameters
-    // ColvarsForceProvider(const DensityFittingParameters&             parameters,
-    //                             basic_mdspan<const float, dynamicExtents3D> referenceDensity,
-    //                             const TranslateAndScale& transformationToDensityLattice,
-    //                             const LocalAtomSet&      localAtomSet,
-    //                             PbcType                  pbcType,
-    //                             double                   simulationTimeStep,
-    //                             const DensityFittingForceProviderState& state);
-    ColvarsForceProvider();
+    ColvarsForceProvider(const std::string&    fileinput,
+                         LocalAtomSetManager*  localAtomSetManager,
+                         PbcType               pbcType,
+                         double                simulationTimeStep,
+                         t_atoms               atoms,
+                         const t_commrec*      cr);
     ~ColvarsForceProvider();
 
     /*!\brief Calculate forces that maximise goodness-of-fit with a reference density map.
@@ -49,7 +67,31 @@ public:
      */
     //void writeCheckpointData(MdModulesWriteCheckpointData checkpointWriting, const std::string& moduleName);
 
-private:
+
+    //!From colvarproxy
+
+    void add_energy (cvm::real energy) override {}
+
+    // **************** SYSTEM-WIDE PHYSICAL QUANTITIES ****************
+    cvm::real backend_angstrom_value() override {}
+    cvm::real boltzmann() override {}
+    cvm::real temperature() override {}
+    cvm::real dt() override {}
+    cvm::real rand_gaussian() override {}
+
+    // **************** INPUT/OUTPUT ****************
+    /// Print a message to the main log
+    void log (std::string const &message) override {}
+    /// Print a message to the main log and let the rest of the program handle the error
+    void error (std::string const &message) override {}
+    /// Request to set the units used internally by Colvars
+    int set_unit_system(std::string const &units_in, bool colvars_defined) override {}
+
+    int init_atom(int atom_number) override {}
+
+    int check_atom_id(int atom_number) override {}
+    // void update_atom_properties(int index)  {}
+
 
 };
 

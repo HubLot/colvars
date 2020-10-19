@@ -5,7 +5,6 @@
 #include "colvarsforceprovider.h"
 
 #include <numeric>
-#include <optional>
 
 #include "gromacs/domdec/localatomset.h"
 #include "gromacs/gmxlib/network.h"
@@ -28,23 +27,28 @@ namespace gmx
 
 ColvarsForceProvider::~ColvarsForceProvider() = default;
 
-ColvarsForceProvider::ColvarsForceProvider() {}
 
-// ColvarsForceProvider::ColvarsForceProvider(const DensityFittingParameters& parameters,
-//                                                          basic_mdspan<const float, dynamicExtents3D> referenceDensity,
-//                                                          const TranslateAndScale& transformationToDensityLattice,
-//                                                          const LocalAtomSet& localAtomSet,
-//                                                          PbcType             pbcType,
-//                                                          double              simulationTimeStep,
-//                                                          const DensityFittingForceProviderState& state) :
-//     impl_(new Impl(parameters, referenceDensity, transformationToDensityLattice, localAtomSet, pbcType, simulationTimeStep, state))
-// {
-// }
+ColvarsForceProvider::ColvarsForceProvider(const std::string&  fileinput,
+                                            LocalAtomSetManager*  localAtomSetManager,
+                                            PbcType               pbcType,
+                                            double                simulationTimeStep,
+                                            t_atoms               atoms,
+                                            const t_commrec*      cr) :
+    pbcType_(pbcType), gmx_atoms_(atoms), timestep(simulationTimeStep)
+{
+    colvars_atoms = std::make_unique<LocalAtomSet>(localAtomSetManager->add(std::vector<index>({337, 715})));
+
+
+}
 
 void ColvarsForceProvider::calculateForces(const ForceProviderInput& forceProviderInput,
                                                   ForceProviderOutput*      forceProviderOutput)
 {
-    std::cout << "Inside ColvarsForceProvider::calculateForces" << std::endl;
+    std::cout << "Inside ColvarsForceProvider::calculateForces; step: " << timestep << std::endl;
+
+    std::cout << "size localAtomset_ : " << colvars_atoms->numAtomsGlobal() << std::endl;
+    std::cout << "list localAtomset_ : " << colvars_atoms->globalIndex()[0] << ", "
+              <<  colvars_atoms->globalIndex()[1] << std::endl;
 }
 
 

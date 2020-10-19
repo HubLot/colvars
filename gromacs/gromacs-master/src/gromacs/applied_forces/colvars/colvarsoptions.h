@@ -9,6 +9,9 @@
 namespace gmx
 {
 
+class KeyValueTreeObject;
+class KeyValueTreeBuilder;
+
 
 /*! \internal
  * \brief Input data storage for colvars
@@ -29,6 +32,12 @@ public:
      * Connect option name and data.
      */
     void initMdpOptions(IOptionsContainerWithSections* options) override;
+
+    //! Store the paramers that are not mdp options in the tpr file
+    void writeInternalParametersToKvt(KeyValueTreeObjectBuilder treeBuilder);
+
+    //! Set the internal parameters that are stored in the tpr file
+    void readInternalParametersFromKvt(const KeyValueTreeObject& tree);
 
     //! Report if this set of options is active
     bool isActive() const;
