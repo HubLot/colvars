@@ -106,6 +106,9 @@ public:
   /// Closes the given input stream
   virtual int close_input_stream(std::string const &input_name);
 
+  /// Return a cached copy of a previously-read input stream
+  std::string const &get_input_buffer(std::string const &input_name);
+
   /// Closes all input streams
   virtual int close_input_streams();
 
@@ -150,8 +153,17 @@ protected:
   /// Container of input files/channels indexed by path name
   std::map<std::string, std::istream *> input_streams_;
 
+  /// Container of cached copies of each file/channel's contents
+  std::map<std::string, std::string> cached_input_buffers_;
+
+  /// Whether to keep a cached copy of each input buffer
+  bool cache_input_buffers;
+
   /// Object whose reference is returned when read errors occur
   std::istream *input_stream_error_;
+
+  /// String whose reference is returned when errors occur
+  std::string cached_input_buffers_error_;
 
   /// Buffer from which the input state information may be read
   char const *input_buffer_;

@@ -30,6 +30,7 @@
 colvarproxy_io::colvarproxy_io()
 {
   input_buffer_ = NULL;
+  cache_input_buffers = false;
   restart_frequency_engine = 0;
   input_stream_error_ = new std::istringstream();
   input_stream_error_->setstate(std::ios::badbit);
@@ -171,7 +172,40 @@ std::istream &colvarproxy_io::input_stream(std::string const &input_name,
                COLVARS_FILE_ERROR);
   }
 
+  if (input_streams_[input_name]->good() && cache_input_buffers) {
+    // Cache a full copy of the contents of this stream
+    std::ostringstream os;
+    if (!(os << input_streams_[input_name]->rdbuf())) {
+      cvm::error("Error: while reading "+description+" \""+input_name+"\".\n",
+                 COLVARS_FILE_ERROR);
+    } else {
+      cached_input_buffers_[input_name] = os.str();
+    }
+
+    // Clear any EOF or error bits and rewind
+    input_streams_[input_name]->clear();
+    input_streams_[input_name]->seekg(0, std::ios::beg);
+  }
+
   return *(input_streams_[input_name]);
+}
+
+
+std::string const &colvarproxy_io::get_input_buffer(std::string const &input_name)
+{
+  if (cached_input_buffers_.count(input_name) > 0) {
+    return cached_input_buffers_[input_name];
+  }
+
+  if (!cache_input_buffers) {
+    cvm::error("Error: trying to read a cached input buffer, but caching is "
+               "not enabled.\n", COLVARS_BUG_ERROR);
+    return cached_input_buffers_error_;
+  }
+
+  cvm::error("Error: could not find cached input buffer named \""+
+             input_name+"\".\n", COLVARS_INPUT_ERROR);
+  return cached_input_buffers_error_;
 }
 
 
