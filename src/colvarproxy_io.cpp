@@ -191,6 +191,25 @@ std::istream &colvarproxy_io::input_stream(std::string const &input_name,
 }
 
 
+int colvarproxy_io::set_input_stream_from_string(std::string const &input_name,
+                                                 std::string const &buffer)
+{
+  if (!io_available()) {
+    return cvm::error("Error: trying to access an input file/channel "
+                      "from the wrong thread.\n", COLVARS_BUG_ERROR);
+  }
+
+  if (input_streams_.count(input_name) > 0) {
+    return cvm::error("Error: trying to reinitialize an input file/channel; "
+                      "need to close it first.\n", COLVARS_BUG_ERROR);
+  }
+
+  input_streams_[input_name] = new std::istringstream(buffer);
+
+  return input_streams_[input_name]->good() ? COLVARS_OK : COLVARS_INPUT_ERROR;
+}
+
+
 std::string const &colvarproxy_io::get_input_buffer(std::string const &input_name)
 {
   if (cached_input_buffers_.count(input_name) > 0) {

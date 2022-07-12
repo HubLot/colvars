@@ -103,6 +103,12 @@ public:
                                      std::string const description = "file/channel",
                                      bool error_on_fail = true);
 
+  /// Initialize an input stream with this name from a string
+  /// \param input_name Name of stream; if a file name, the file won't be read
+  /// \param buffer String that will be set as the content of the stream
+  int set_input_stream_from_string(std::string const &input_name,
+                                   std::string const &buffer);
+
   /// Closes the given input stream
   virtual int close_input_stream(std::string const &input_name);
 
