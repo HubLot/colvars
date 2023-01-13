@@ -82,7 +82,7 @@ then
 elif [ -f "${target}/include/molfile_plugin.h" ]
 then
   code="VMD-PLUGINS"
-elif [ -f "${target}/src/gromacs/commandline.h" ]
+elif [ -d "${target}/src/gromacs/mdrun" ]
 then
   code="GROMACS"
 else
@@ -194,6 +194,9 @@ then
       ;;
     2022*)
       GMX_VERSION='2022.x'
+      ;;
+    2023*)
+      GMX_VERSION='2023.x'
       ;;
     *)
     if [ $force_update = 0 ] ; then
